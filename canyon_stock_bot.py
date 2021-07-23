@@ -97,7 +97,7 @@ def check_stock():
             old_instances = bike_list[1]
             new_instances = soup.text.count(bike)
             if new_instances != old_instances:
-                bike_list[1] = new_instances
+                bike_list = (bike, new_instances)
                 bot.send_message(chat_id=user_id, text="There are new " + bike + " in stock")
 
 
