@@ -59,7 +59,12 @@ def error(update, context):
 def init_dict():
     global users
     try:
+        if os.path.getsize("users.json") is 0:
+            with open("users.json", "w") as read_file:
+                read_file.write("{}")
+
         with open("users.json", "r") as read_file:
+
             users = json.load(read_file)
             pass
     except:
@@ -74,7 +79,7 @@ def write_dict():
 def add_user(user_id, urls):
     user_id = user_id.chat_id
     if str(user_id) not in users or len(users[str(user_id)]) == 0:
-        users[str(user_id)] = (" ".join(urls), 0)
+        users[str(user_id)] = [" ".join(urls), 0]
         bot.send_message(chat_id=user_id, text="You will be notified when there is stock of the product")
     else:
         bot.send_message(chat_id=user_id, text="You already have a subscription, unsubscribe to add another")
@@ -91,13 +96,13 @@ def check_stock():
     global bike_instances
     request = requests.get("https://www.canyon.com/en-es/outlet-bikes/mountain-bikes/")
     soup = bs(request.content, features="html.parser")
-    for user_id, bike_list in users.items():
-        if len(bike_list) != 0:
-            bike = bike_list[0]
-            old_instances = bike_list[1]
+    for user_id in users.keys():
+        if len(users[user_id]) != 0:
+            bike = users[user_id][0]
+            old_instances = users[user_id][1]
             new_instances = soup.text.count(bike)
             if new_instances != old_instances:
-                bike_list = (bike, new_instances)
+                users[user_id][1] = new_instances
                 print(f"Notified user {user_id} about the new {bike}")
                 bot.send_message(chat_id=user_id, text="There are new " + bike + " in stock")
                 write_dict()
