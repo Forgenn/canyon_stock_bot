@@ -21,7 +21,7 @@ bot = Bot(token=token)
 
 def start(update, context):
     """Send a message when the command /start is issued."""
-    update.message.reply_text('Utilitza la comanda /subscribe seguida de una o mes urls de decathlon, el bot tavisara quan hi hagui stock. Si vols parar de rebre notificacions, /unsubscribe')
+    update.message.reply_text('Utilitza la comanda /outlet seguida de una o mes urls de decathlon, el bot tavisara quan hi hagui stock. Si vols parar de rebre notificacions, /noOUtlet')
 
 
 def help(update, context):
@@ -30,12 +30,22 @@ def help(update, context):
     update.message.reply_text('Help!')
 
 
-def subscribe(update, context):
+def bike(update, context):
     if len(context.args) == 0:
         update.message.reply_text("You have to put one or more links")
         return
 
-    add_user(update.message, context.args)
+    add_user_bike(update.message, context.args)
+
+    print("Adding user " + str(update.message.chat_id) + " with args " + " ".join(context.args))
+
+
+def outlet(update, context):
+    if len(context.args) == 0:
+        update.message.reply_text("You have to put one or more links")
+        return
+
+    add_user_outlet(update.message, context.args)
 
     print("Adding user " + str(update.message.chat_id) + " with args " + " ".join(context.args))
 
@@ -76,11 +86,21 @@ def write_dict():
         json.dump(users, outfile)
 
 
-def add_user(user_id, urls):
+def add_user_outlet(user_id, urls):
     user_id = user_id.chat_id
     if str(user_id) not in users or len(users[str(user_id)]) == 0:
-        users[str(user_id)] = [" ".join(urls), 0]
-        bot.send_message(chat_id=user_id, text="You will be notified when there is stock of the product")
+        users[str(user_id)] = ["outlet", "".join(urls), 0]
+        bot.send_message(chat_id=user_id, text="You will be notified when there is stock of the outlet product")
+    else:
+        bot.send_message(chat_id=user_id, text="You already have a subscription, unsubscribe to add another")
+    write_dict()
+
+
+def add_user_bike(user_id, urls):
+    user_id = user_id.chat_id
+    if str(user_id) not in users or len(users[str(user_id)]) == 0:
+        users[str(user_id)] = ["bike", urls[0], urls[1]]
+        bot.send_message(chat_id=user_id, text="You will be notified when there is stock of the outlet product")
     else:
         bot.send_message(chat_id=user_id, text="You already have a subscription, unsubscribe to add another")
     write_dict()
@@ -93,14 +113,15 @@ def remove_user(user_id):
 
 
 def check_stock():
-    global bike_instances
-    request = requests.get("https://www.canyon.com/en-es/outlet-bikes/mountain-bikes/")
-    soup = bs(request.content, features="html.parser")
     for user_id in users.keys():
-        if len(users[user_id]) != 0:
+        if len(users[user_id]) != 0 and users[user_id][0] == "outlet":
+            global bike_instances
+            request = requests.get("https://www.canyon.com/en-es/outlet-bikes/mountain-bikes/")
+            soup = bs(request.content, features="html.parser")
             bike = users[user_id][0]
             old_instances = users[user_id][1]
             new_instances = soup.text.count(bike)
+
             if new_instances != old_instances:
                 users[user_id][1] = new_instances
                 print(f"Notified user {user_id} about the new {bike}")
@@ -108,6 +129,24 @@ def check_stock():
                 write_dict()
             else:
                 print(f"No new notifications for {user_id}")
+
+        elif len(users[user_id]) != 0 and users[user_id][0] == "bike":
+            requests_bike = requests.get(users[user_id][1])
+            soup = bs(requests_bike.content, features="html.parser")
+            availableCards = soup.find_all("div", {"class": "productConfiguration__variantType js-productConfigurationVariantType"})
+
+            for card in availableCards:
+                if card.text.strip().lower() == users[user_id][2].lower():
+                    availability = card.parent.find_all("div", {"class": "productConfiguration__availabilityMessage"})[0].text.strip()
+
+                    if "delivery" in availability.lower():
+                        print(f"Notified user {user_id} about the new bike")
+                        bot.send_message(chat_id=user_id, text=f"There are new bikes in stock: {users[user_id][1]}")
+                    else:
+                        print(f"No new notifications for {user_id}")
+
+
+
 
 
 def start_bot():
@@ -124,8 +163,10 @@ def start_bot():
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("subscribe", subscribe, pass_args=True))
+    dp.add_handler(CommandHandler("outlet", outlet, pass_args=True))
     dp.add_handler(CommandHandler("unsubscribe", unsubscribe))
+    dp.add_handler(CommandHandler("bike", bike, pass_args=True))
+    dp.add_handler(CommandHandler("noOutlet", bike))
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, echo))
