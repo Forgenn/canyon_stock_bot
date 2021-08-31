@@ -188,4 +188,4 @@ if __name__ == '__main__':
     while True:
         print('Checking stock')
         check_stock()
-        time.sleep(900)
+        time.sleep(300)
